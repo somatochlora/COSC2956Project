@@ -1,8 +1,29 @@
 const dotenv = require('dotenv').config();
+const express = require('express');
+const cors = require('cors');
 
-const latitude = 42.98774;
-const longitude = -81.24036; 
-const radiusKm = 20;
+const app = express();
+const port = 80;
+
+app.use(express.static('web'));
+
+app.get('/getObservation/:lat/:long/:radius', (req, res) => {
+    const lat = req.params.lat;
+    const long = req.params.long;
+    const radius = req.params.radius;
+    const eBirdResults = fetchEbirdData(lat, long, radius);
+    const iNatResults = fetchInatData(lat, long, radius);
+    Promise.all([eBirdResults, iNatResults]).then(values => {
+        const eBirdData = values[0].map(eBirdObsFormat);
+        const iNatData = values[1]['results'].map(iNatObsFormat);
+        const allData = eBirdData.concat(iNatData);
+        res.send(allData);
+    });
+});
+
+app.listen(port, () => {
+    console.log(`App listening at http://localhost:${port}`)
+});
 
 const fetchEbirdData = async (lat, long, radius) => {
 
@@ -13,7 +34,15 @@ const fetchEbirdData = async (lat, long, radius) => {
     return await result.json();
 };
 
-//fetchEbirdData(latitude, longitude, radiusKm).then(data => console.log(data));
+const eBirdObsFormat = (data) => {
+    return {
+        source: 'eBird',
+        species: data.comName,
+        count: data.howMany,
+        location: data.locName,
+        date: data.obsDt,
+    }
+}
 
 const fetchInatData = async (lat, long, radius) => {
 
@@ -22,4 +51,11 @@ const fetchInatData = async (lat, long, radius) => {
     return await result.json();
 };
 
-//fetchInatData(latitude, longitude, radiusKm).then(data => console.log(data));
+const iNatObsFormat = (data) => {
+    return {
+        source: 'iNaturalist',
+        species: data.species_guess,
+        location: data.place_guess,
+        date: data.observed_on,
+    }
+}
